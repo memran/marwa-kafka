@@ -1,5 +1,5 @@
 <?php
-require 'vendor/autoload.php';
+require '../vendor/autoload.php';
 
 use Marwa\Kafka\KafkaProducer;
 use Marwa\Kafka\Support\KafkaConfig;

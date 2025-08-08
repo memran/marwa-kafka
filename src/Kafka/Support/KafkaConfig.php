@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Kafka\Support;
+namespace Marwa\Kafka\Kafka\Support;
 
 final class KafkaConfig
 {
