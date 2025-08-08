@@ -2,18 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Marwa\Kafka;
+namespace Marwa\Kafka\Producer;
 
-use Marwa\Kafka\DTO\Message;
 use Marwa\Kafka\Support\KafkaConfig;
 use Marwa\Kafka\Contracts\ProducerInterface;
-
 use RdKafka\Conf;
 use RdKafka\Producer as RdKafkaProducer;
 use RdKafka\ProducerTopic;
-use RdKafka\KafkaConsumer as RdKafkaConsumer;
 use Marwa\Envelop\EnvelopBuilder;
-use Marwa\Envelop\Envelop;
 
 final class KafkaProducer implements ProducerInterface
 {
@@ -21,31 +17,19 @@ final class KafkaProducer implements ProducerInterface
     private array $topics = [];
 
     public function __construct(
-        private readonly KafkaConfig $config,
-        private readonly string $signatureSecret
+        private readonly KafkaConfig $config
     ) {}
 
-    public function produce(Message $message): void
+    public function produce(string $topic, EnvelopBuilder $envelop, ?string $key = null, ?int $timestampMs = null, ?int $partition = null): void
     {
-        $envelop = EnvelopBuilder::start()
-            ->type($message->headers['type'] ?? 'event')
-            ->sender($message->headers['sender'] ?? 'php-app')
-            ->receiver($message->headers['receiver'] ?? 'service')
-            ->body($message->payload)
-            ->ttl($message->headers['ttl'] ?? 300)
-            ->sign($this->signatureSecret)
-            ->build();
-
-        $payload = $envelop->toJson();
-        $topic = $this->getTopic($message->topic);
-
-        $topic->producev(
-            $message->partition ?? RD_KAFKA_PARTITION_UA,
+        $payload = $envelop;
+        $this->getTopic($topic)->producev(
+            $partition ?? RD_KAFKA_PARTITION_UA,
             0,
             $payload,
-            $message->key,
+            $key,
             null,
-            $message->timestampMs
+            $timestampMs
         );
 
         $this->getProducer()->poll(0);

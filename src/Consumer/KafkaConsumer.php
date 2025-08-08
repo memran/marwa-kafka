@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
+namespace Marwa\Kafka\Consumer;
+
 use Marwa\Kafka\Contracts\ConsumerInterface;
-use Marwa\Kafka\DTO\Message;
 use Marwa\Kafka\Support\KafkaConfig;
 
 final class KafkaConsumer implements ConsumerInterface
@@ -43,14 +44,7 @@ final class KafkaConsumer implements ConsumerInterface
                         return true;
                     }
 
-                    $ok = $onMessage([
-                        'type' => $envelop->type,
-                        'sender' => $envelop->sender,
-                        'receiver' => $envelop->receiver,
-                        'headers' => $envelop->headers,
-                        'body' => $envelop->body,
-                        'raw' => $msg->payload
-                    ]);
+                    $ok = $onMessage($envelop);
 
                     if ($ok !== false && !$this->enableAutoCommit) {
                         $this->getConsumer()->commit($msg);

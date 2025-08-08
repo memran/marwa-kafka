@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Kafka\Contracts;
+namespace Marwa\Kafka\Contracts;
 
 interface ConsumerInterface
 {

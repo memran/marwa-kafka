@@ -1,13 +1,16 @@
-FROM php:8.2-cli
+FROM php:8.2-cli-alpine
 
-# Install dependencies for librdkafka and PECL
-RUN apt-get update && apt-get install -y \
-    librdkafka-dev libssl-dev zlib1g-dev php-dev php-pear git unzip \
-    && pecl install rdkafka \
-    && docker-php-ext-enable rdkafka \
-    && rm -rf /var/lib/apt/lists/*
+# Install necessary system dependencies for librdkafka
+RUN apk add --no-cache \
+    librdkafka-dev \
+    build-base \
+    autoconf
 
-# Optional: install composer
+# Install the php-rdkafka extension
+# Use pecl install for easy installation
+RUN pecl install rdkafka \
+    && docker-php-ext-enable rdkafka
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app

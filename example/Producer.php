@@ -1,21 +1,24 @@
 <?php
-require '../vendor/autoload.php';
+require_once './vendor/autoload.php';
 
-use Marwa\Kafka\KafkaProducer;
+use Marwa\Kafka\Producer\KafkaProducer;
 use Marwa\Kafka\Support\KafkaConfig;
-use Marwa\Kafka\DTO\Message;
+use Marwa\Envelop\EnvelopBuilder;
 
 $config = new KafkaConfig('kafka:9092', 'php-producer');
 $producer = new KafkaProducer($config, 'secret-signature-key');
 
-$message = new Message(
-    topic: 'test-topic',
-    payload: ['event' => 'user_registered', 'user_id' => 101],
-    key: 'user-key',
-    headers: ['type' => 'event', 'sender' => 'php-app', 'ttl' => 600]
-);
+$msg = EnvelopBuilder::start()
+    ->type('event')
+    ->sender('php-app')
+    ->receiver('my-service')
+    ->body(['message' => 'Hello'])
+    ->ttl(300)
+    ->sign('secret')
+    ->build();
 
-$producer->produce($message);
+$producer->produce('my-topic', $msg);
+
 $producer->flush();
 
 echo "✅ Message produced successfully.

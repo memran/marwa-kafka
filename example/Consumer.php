@@ -1,8 +1,10 @@
 <?php
 require '../vendor/autoload.php';
 
-use Marwa\Kafka\KafkaConsumer;
+use Marwa\Kafka\KafkaProducer;
 use Marwa\Kafka\Support\KafkaConfig;
+use Marwa\Envelop\Envelop;
+
 
 $config = new KafkaConfig('kafka:9092');
 $consumer = new KafkaConsumer(
@@ -15,9 +17,6 @@ $consumer = new KafkaConsumer(
 echo "👂 Listening for messages...
 ";
 
-$consumer->run(function ($msg) {
-    echo "📥 Received message:
-";
-    print_r($msg['body']);
-    return true;
+$consumer->run(function (Envelop $envelop) {
+    print_r($envelop->body);
 });
