@@ -1,22 +1,24 @@
 <?php
-require '../vendor/autoload.php';
+require './vendor/autoload.php';
 
-use Marwa\Kafka\KafkaProducer;
+use Marwa\Kafka\Consumer\KafkaConsumer;
 use Marwa\Kafka\Support\KafkaConfig;
 use Marwa\Envelop\Envelop;
 
+$config = new KafkaConfig([
+    'brokers' => 'kafka:9092',
+    'clientId' => 'php-consumer'
+]);
 
-$config = new KafkaConfig('kafka:9092');
-$consumer = new KafkaConsumer(
-    config: $config,
-    groupId: 'php-group',
-    topics: ['test-topic'],
-    signatureSecret: 'secret-signature-key'
-);
+$consumer = (new KafkaConsumer($config, 'php-group', 'super-secret'))
+    ->withHost('kafka:9092')
+    ->withTopics(['user-events']);
 
-echo "👂 Listening for messages...
-";
+$consumer->run(function ($envelop) {
+    echo "📩 Received Message:\n";
+    echo "  Type     : {$envelop->type}\n";
+    echo "  Sender   : {$envelop->sender}\n";
+    echo "  Body     : " . json_encode($envelop->body, JSON_PRETTY_PRINT) . "\n\n";
 
-$consumer->run(function (Envelop $envelop) {
-    print_r($envelop->body);
+    return true; // commit the message
 });

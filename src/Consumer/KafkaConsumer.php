@@ -4,22 +4,44 @@ declare(strict_types=1);
 
 namespace Marwa\Kafka\Consumer;
 
-use Marwa\Kafka\Contracts\ConsumerInterface;
 use Marwa\Kafka\Support\KafkaConfig;
+use Marwa\Kafka\Contracts\ConsumerInterface;
+use RdKafka\Conf;
+use RdKafka\KafkaConsumer as RdKafkaConsumer;
+use RdKafka\Message as KafkaMessage;
+use Marwa\Envelop\Envelop;
 
+/**
+ * Class KafkaConsumer
+ *
+ * Consumes and processes Kafka messages using Envelop structure.
+ */
 final class KafkaConsumer implements ConsumerInterface
 {
     private ?RdKafkaConsumer $consumer = null;
     private bool $running = false;
+    private ?string $kafkaHost = null;
+    private array $topicList = [];
 
     public function __construct(
         private readonly KafkaConfig $config,
         private readonly string $groupId,
-        private readonly array $topics,
         private readonly string $signatureSecret,
         private readonly bool $enableAutoCommit = true,
         private readonly string $autoOffsetReset = 'earliest'
     ) {}
+
+    public function withHost(string $host): self
+    {
+        $this->kafkaHost = $host;
+        return $this;
+    }
+
+    public function withTopics(array $topics): self
+    {
+        $this->topicList = $topics;
+        return $this;
+    }
 
     public function run(callable $onMessage, int $pollTimeoutMs = 1000): void
     {
@@ -32,13 +54,27 @@ final class KafkaConsumer implements ConsumerInterface
 
     public function runOnce(callable $onMessage, int $pollTimeoutMs = 500): bool
     {
-        $msg = $this->getConsumer()->consume($pollTimeoutMs);
-        if ($msg === null) return false;
+        $message = $this->getConsumer()->consume($pollTimeoutMs);
 
+        if (!$message instanceof KafkaMessage) {
+            return false;
+        }
+
+
+        return $this->handleMessage($message, $onMessage);
+    }
+
+    public function stop(): void
+    {
+        $this->running = false;
+    }
+
+    private function handleMessage(KafkaMessage $msg, callable $onMessage): bool
+    {
         switch ($msg->err) {
             case RD_KAFKA_RESP_ERR_NO_ERROR:
                 try {
-                    $envelop = Envelop::fromJson((string)$msg->payload);
+                    $envelop = Envelop::fromJson((string) $msg->payload);
 
                     if ($envelop->isExpired() || !$envelop->checkSignature($this->signatureSecret)) {
                         return true;
@@ -62,34 +98,30 @@ final class KafkaConsumer implements ConsumerInterface
         }
     }
 
-    public function stop(): void
-    {
-        $this->running = false;
-    }
-
     private function getConsumer(): RdKafkaConsumer
     {
-        if ($this->consumer) {
+        if ($this->consumer !== null) {
             return $this->consumer;
         }
 
         $conf = new Conf();
-        $conf->set('bootstrap.servers', $this->config->brokers);
+        $conf->set('bootstrap.servers', $this->kafkaHost ?? $this->config->brokers);
         $conf->set('group.id', $this->groupId);
         $conf->set('enable.auto.commit', $this->enableAutoCommit ? 'true' : 'false');
         $conf->set('auto.offset.reset', $this->autoOffsetReset);
 
-        if ($this->config->clientId) {
+
+        if (!empty($this->config->clientId)) {
             $conf->set('client.id', $this->config->clientId);
         }
 
         foreach ($this->config->extra as $key => $value) {
-            $conf->set((string)$key, (string)$value);
+            $conf->set((string) $key, (string) $value);
         }
 
-        $this->consumer = new RdKafkaConsumer($conf);
-        $this->consumer->subscribe($this->topics);
+        $consumer = new RdKafkaConsumer($conf);
+        $consumer->subscribe($this->topicList);
 
-        return $this->consumer;
+        return $this->consumer = $consumer;
     }
 }
