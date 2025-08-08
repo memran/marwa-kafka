@@ -43,6 +43,12 @@ final class KafkaConsumer implements ConsumerInterface
         return $this;
     }
 
+    public function listen(callable $onMessage, int $pollTimeoutMs = 1000): void
+    {
+        $this->run($onMessage, $pollTimeoutMs);
+    }
+
+
     public function run(callable $onMessage, int $pollTimeoutMs = 1000): void
     {
         $this->running = true;
