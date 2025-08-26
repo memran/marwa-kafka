@@ -1,6 +1,7 @@
 # Marwa Kafka
 
 ![License](https://img.shields.io/github/license/memran/marwa-kafka)
+[![Total Downloads](https://img.shields.io/packagist/dt/memran/marwa-kafka.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-kafka)
 ![PHP Version](https://img.shields.io/badge/PHP-8.1+-blue)
 ![Kafka](https://img.shields.io/badge/Kafka-Ready-orange)
 
@@ -128,9 +129,3 @@ Licensed under the [MIT License](LICENSE).
 - [`memran/marwa-envelop`](https://github.com/memran/marwa-envelop): Secure message envelope for Kafka, WebSocket, and HTTP.
 
 ---
-
-## 🧔 Author
-
-**Mohammad Emran**  
-CEO & Founder — [Inception Technologies Ltd.](https://inceptionbd.com)  
-🌐 [LinkedIn](https://linkedin.com/in/mohammad-emran) | 📧 [Email](mailto:you@example.com)
