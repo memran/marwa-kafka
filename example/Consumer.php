@@ -1,17 +1,18 @@
 <?php
-require './vendor/autoload.php';
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
 
 use Marwa\Kafka\Consumer\KafkaConsumer;
 use Marwa\Kafka\Support\KafkaConfig;
-use Marwa\Envelop\Envelop;
 
 $config = new KafkaConfig([
     'brokers' => 'kafka:9092',
-    'clientId' => 'php-consumer'
+    'clientId' => 'php-consumer',
 ]);
 
 $consumer = (new KafkaConsumer($config, 'php-group', 'super-secret'))
-    ->withHost('kafka:9092')
     ->withTopics(['user-events']);
 
 $consumer->run(function ($envelop) {

@@ -10,6 +10,9 @@ interface ProducerInterface
 {
     public function withHost(string $host): self;
 
+    /**
+     * @param list<string> $topics
+     */
     public function withTopics(array $topics): self;
 
     public function produce(
@@ -17,7 +20,7 @@ interface ProducerInterface
         Envelop $envelop,
         ?string $key = null,
         ?int $timestampMs = null,
-        ?int $partition = null
+        ?int $partition = null,
     ): void;
 
     public function flush(int $timeoutMs = 10000): void;

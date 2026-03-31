@@ -7,6 +7,7 @@ composer.lock
 # PHPUnit test results
 /phpunit.xml
 .phpunit.result.cache
+.phpunit.cache/
 /tests/_output/
 
 # Coverage reports

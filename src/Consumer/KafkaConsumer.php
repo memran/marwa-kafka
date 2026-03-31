@@ -4,42 +4,66 @@ declare(strict_types=1);
 
 namespace Marwa\Kafka\Consumer;
 
-use Marwa\Kafka\Support\KafkaConfig;
+use Marwa\Envelop\Envelop;
 use Marwa\Kafka\Contracts\ConsumerInterface;
+use Marwa\Kafka\Support\KafkaConfig;
+use Marwa\Kafka\Support\Topic;
 use RdKafka\Conf;
 use RdKafka\KafkaConsumer as RdKafkaConsumer;
 use RdKafka\Message as KafkaMessage;
-use Marwa\Envelop\Envelop;
 
-/**
- * Class KafkaConsumer
- *
- * Consumes and processes Kafka messages using Envelop structure.
- */
 final class KafkaConsumer implements ConsumerInterface
 {
     private ?RdKafkaConsumer $consumer = null;
     private bool $running = false;
     private ?string $kafkaHost = null;
+
+    /** @var list<string> */
     private array $topicList = [];
+
+    /** @var null|callable(\Throwable): void */
+    private $errorHandler = null;
 
     public function __construct(
         private readonly KafkaConfig $config,
         private readonly string $groupId,
         private readonly string $signatureSecret,
         private readonly bool $enableAutoCommit = true,
-        private readonly string $autoOffsetReset = 'earliest'
-    ) {}
+        private readonly string $autoOffsetReset = 'earliest',
+    ) {
+        if (trim($this->groupId) === '') {
+            throw new \InvalidArgumentException('Kafka consumer groupId must be a non-empty string.');
+        }
+
+        if (trim($this->signatureSecret) === '') {
+            throw new \InvalidArgumentException('Kafka consumer signatureSecret must be a non-empty string.');
+        }
+
+        if (trim($this->autoOffsetReset) === '') {
+            throw new \InvalidArgumentException('Kafka consumer autoOffsetReset must be a non-empty string.');
+        }
+    }
 
     public function withHost(string $host): self
     {
-        $this->kafkaHost = $host;
+        $normalizedHost = trim($host);
+
+        if ($normalizedHost === '') {
+            throw new \InvalidArgumentException('Kafka host must be a non-empty string.');
+        }
+
+        $this->kafkaHost = $normalizedHost;
+
         return $this;
     }
 
+    /**
+     * @param list<string> $topics
+     */
     public function withTopics(array $topics): self
     {
-        $this->topicList = $topics;
+        $this->topicList = Topic::normalizeList($topics);
+
         return $this;
     }
 
@@ -48,24 +72,32 @@ final class KafkaConsumer implements ConsumerInterface
         $this->run($onMessage, $pollTimeoutMs);
     }
 
+    public function withErrorHandler(callable $errorHandler): self
+    {
+        $this->errorHandler = $errorHandler;
+
+        return $this;
+    }
 
     public function run(callable $onMessage, int $pollTimeoutMs = 1000): void
     {
+        $this->assertPollTimeout($pollTimeoutMs);
         $this->running = true;
 
-        while ($this->running) {
+        while ($this->shouldContinueRunning()) {
             $this->runOnce($onMessage, $pollTimeoutMs);
         }
     }
 
     public function runOnce(callable $onMessage, int $pollTimeoutMs = 500): bool
     {
+        $this->assertPollTimeout($pollTimeoutMs);
+
         $message = $this->getConsumer()->consume($pollTimeoutMs);
 
         if (!$message instanceof KafkaMessage) {
             return false;
         }
-
 
         return $this->handleMessage($message, $onMessage);
     }
@@ -93,7 +125,11 @@ final class KafkaConsumer implements ConsumerInterface
                     }
 
                     return true;
-                } catch (\Throwable) {
+                } catch (\Throwable $exception) {
+                    if ($this->errorHandler !== null) {
+                        ($this->errorHandler)($exception);
+                    }
+
                     return true;
                 }
 
@@ -110,12 +146,15 @@ final class KafkaConsumer implements ConsumerInterface
             return $this->consumer;
         }
 
+        if ($this->topicList === []) {
+            throw new \LogicException('Kafka consumer requires at least one topic. Call withTopics() before consuming.');
+        }
+
         $conf = new Conf();
         $conf->set('bootstrap.servers', $this->kafkaHost ?? $this->config->brokers);
         $conf->set('group.id', $this->groupId);
         $conf->set('enable.auto.commit', $this->enableAutoCommit ? 'true' : 'false');
         $conf->set('auto.offset.reset', $this->autoOffsetReset);
-
 
         if (!empty($this->config->clientId)) {
             $conf->set('client.id', $this->config->clientId);
@@ -129,5 +168,17 @@ final class KafkaConsumer implements ConsumerInterface
         $consumer->subscribe($this->topicList);
 
         return $this->consumer = $consumer;
+    }
+
+    private function assertPollTimeout(int $pollTimeoutMs): void
+    {
+        if ($pollTimeoutMs <= 0) {
+            throw new \InvalidArgumentException('Poll timeout must be greater than zero milliseconds.');
+        }
+    }
+
+    private function shouldContinueRunning(): bool
+    {
+        return $this->running;
     }
 }

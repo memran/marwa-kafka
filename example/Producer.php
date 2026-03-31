@@ -1,17 +1,19 @@
 <?php
-require_once './vendor/autoload.php';
 
+declare(strict_types=1);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use Marwa\Envelop\EnvelopBuilder;
 use Marwa\Kafka\Producer\KafkaProducer;
 use Marwa\Kafka\Support\KafkaConfig;
-use Marwa\Envelop\EnvelopBuilder;
 
 $config = new KafkaConfig([
     'brokers' => 'kafka:9092',
-    'clientId' => 'php-producer'
+    'clientId' => 'php-producer',
 ]);
 
 $producer = (new KafkaProducer($config))
-    ->withHost('kafka:9092')
     ->withTopics(['user-events']);
 
 for ($i = 0; $i < 50; $i++) {
@@ -27,9 +29,6 @@ for ($i = 0; $i < 50; $i++) {
 
     $producer->produce('user-events', $envelop, 'user-123');
 }
-
-
-
 $producer->flush();
 
 echo "✅ Message produced successfully.\n";

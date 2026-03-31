@@ -1,131 +1,157 @@
 # Marwa Kafka
 
-![License](https://img.shields.io/github/license/memran/marwa-kafka)
-[![Total Downloads](https://img.shields.io/packagist/dt/memran/marwa-kafka.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-kafka)
-![PHP Version](https://img.shields.io/badge/PHP-8.1+-blue)
+[![CI](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml)
+![PHP Version](https://img.shields.io/badge/PHP-8.1%2B-blue)
 ![Kafka](https://img.shields.io/badge/Kafka-Ready-orange)
 
-A lightweight, PSR-4 compliant Kafka producer/consumer library for PHP, powered by [php-rdkafka](https://github.com/arnaud-lb/php-rdkafka) and enriched with secure message envelopes from [`memran/marwa-envelop`](https://github.com/memran/marwa-envelop).
+`memran/marwa-kafka` is a lightweight Kafka producer/consumer library for PHP built on `php-rdkafka` and `memran/marwa-envelop`. It keeps the public API small while enforcing safer configuration defaults and message validation.
 
----
+## Requirements
 
-## ✨ Features
+- PHP 8.1, 8.2, or 8.3
+- `ext-rdkafka`
+- A reachable Kafka broker
+- `memran/marwa-envelop`
 
-- ✅ Lazy-loaded Kafka producer and consumer
-- ✅ Secure messaging with TTL, signature & type using `Envelop`
-- ✅ PSR-4 structure and clean, testable design
-- ✅ CLI and Web-compatible
-- ✅ KISS & DRY principles applied
-- ✅ Plug-and-play Docker + Kafka setup
-
----
-
-## 📦 Installation
+Install the package:
 
 ```bash
 composer require memran/marwa-kafka
 ```
 
-Also ensure you have the `rdkafka` extension installed:
+Install the PHP extension if needed:
 
 ```bash
 pecl install rdkafka
 ```
 
----
+## Quick Start
 
-## 🐳 Quick Start (Docker Dev Environment)
-
-### 1. Clone and start Kafka + PHP containers
-
-```bash
-git clone https://github.com/memran/marwa-kafka.git
-cd marwa-kafka
-docker compose up -d --build
-```
-
-### 2. Enter PHP CLI container
-
-```bash
-docker compose exec php bash
-```
-
----
-
-## 🧩 Usage Example
-
-### Produce Message
+### Produce a signed message
 
 ```php
-use Marwa\Kafka\KafkaProducer;
+<?php
+
+declare(strict_types=1);
+
+use Marwa\Envelop\EnvelopBuilder;
+use Marwa\Kafka\Producer\KafkaProducer;
 use Marwa\Kafka\Support\KafkaConfig;
-use Marwa\Kafka\DTO\Message;
 
-$config = new KafkaConfig('kafka:9092', 'php-client');
-$producer = new KafkaProducer($config, 'my-signature-key');
+$config = new KafkaConfig([
+    'brokers' => 'kafka:9092',
+    'clientId' => 'producer-app',
+]);
 
-$producer->produce(new Message(
-    topic: 'test-topic',
-    payload: ['hello' => 'kafka'],
-    key: 'my-key',
-    headers: ['type' => 'event', 'sender' => 'php']
-));
+$producer = (new KafkaProducer($config))
+    ->withTopics(['user-events']);
+
+$envelop = EnvelopBuilder::start()
+    ->type('event')
+    ->sender('php-app')
+    ->receiver('user-service')
+    ->body(['message' => 'Hello from PHP'])
+    ->ttl(300)
+    ->sign('super-secret')
+    ->build();
+
+$producer->produce('user-events', $envelop, 'user-123');
 $producer->flush();
 ```
 
-### Consume Message
+### Consume and validate messages
 
 ```php
-use Marwa\Kafka\KafkaConsumer;
+<?php
+
+declare(strict_types=1);
+
+use Marwa\Kafka\Consumer\KafkaConsumer;
 use Marwa\Kafka\Support\KafkaConfig;
 
-$config = new KafkaConfig('kafka:9092');
-$consumer = new KafkaConsumer(
-    config: $config,
-    groupId: 'my-group',
-    topics: ['test-topic'],
-    signatureSecret: 'my-signature-key'
-);
+$config = new KafkaConfig([
+    'brokers' => 'kafka:9092',
+    'clientId' => 'consumer-app',
+]);
 
-$consumer->run(function ($msg) {
-    print_r($msg['body']);
+$consumer = (new KafkaConsumer($config, 'php-group', 'super-secret'))
+    ->withTopics(['user-events'])
+    ->withErrorHandler(static function (\Throwable $exception): void {
+        error_log($exception->getMessage());
+    });
+
+$consumer->run(static function ($envelop): bool {
+    var_dump($envelop->body);
+
+    return true;
 });
 ```
 
----
+Messages with invalid signatures or expired envelopes are ignored safely. When auto-commit is disabled, returning `false` from the callback prevents manual commit.
 
-## 📂 Directory Structure
+## Configuration
 
-```
+`KafkaConfig` accepts:
+
+- `brokers`: required bootstrap server list, for example `kafka:9092`
+- `clientId`: optional Kafka client ID
+- `extra`: optional associative array of additional Kafka settings
+
+The library trims and validates broker names, host overrides, topic names, consumer group IDs, and signature secrets. Empty values are rejected early with `InvalidArgumentException`.
+
+## Project Structure
+
+```text
 src/
-├── KafkaProducer.php
-├── KafkaConsumer.php
-├── DTO/Message.php
-├── Support/KafkaConfig.php
-└── Contracts/
-    ├── ProducerInterface.php
-    └── ConsumerInterface.php
+  Consumer/
+  Contracts/
+  Producer/
+  Support/
+example/
+tests/
 ```
 
----
+## Development
 
-## 🧪 Testing
+Start the local Kafka stack:
 
 ```bash
-composer install
-vendor/bin/phpunit
+docker compose up -d --build
+docker compose exec php sh
 ```
 
----
+Common Composer scripts:
 
-## 📋 License
+```bash
+composer test
+composer test:coverage
+composer analyse
+composer lint
+composer fix
+composer ci
+```
 
-Licensed under the [MIT License](LICENSE).
+## Testing and Static Analysis
 
----
+- PHPUnit 10 covers configuration and validation behavior.
+- PHPStan runs at level 8.
+- PHP-CS-Fixer enforces a consistent PSR-style code format.
 
-## 🧠 Related Projects
+## CI
 
-- [`memran/marwa-envelop`](https://github.com/memran/marwa-envelop): Secure message envelope for Kafka, WebSocket, and HTTP.
+GitHub Actions runs `composer ci` on pull requests and pushes to `main` across PHP 8.1, 8.2, and 8.3 with the `rdkafka` extension enabled.
 
----
+## Security Notes
+
+- Do not hard-code production secrets in examples or application code.
+- Always use a strong `signatureSecret`.
+- Prefer environment-specific broker configuration and Kafka ACLs.
+- Review `extra` Kafka options before enabling delivery or SASL settings in production.
+
+## Contributing
+
+Open a pull request with a clear summary, test results, and any public API or README updates that accompany behavior changes.
+
+## License
+
+Released under the [MIT License](LICENSE).
