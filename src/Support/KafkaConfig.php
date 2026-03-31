@@ -59,7 +59,7 @@ final class KafkaConfig
         $normalized = [];
 
         foreach ($extra as $key => $value) {
-            if (!is_scalar($key) || trim((string) $key) === '') {
+            if (trim((string) $key) === '') {
                 throw new \InvalidArgumentException('KafkaConfig "extra" keys must be non-empty strings.');
             }
 

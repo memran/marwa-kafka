@@ -8,6 +8,8 @@ use Marwa\Envelop\Envelop;
 use Marwa\Kafka\Contracts\ConsumerInterface;
 use Marwa\Kafka\Support\KafkaConfig;
 use Marwa\Kafka\Support\Topic;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RdKafka\Conf;
 use RdKafka\KafkaConsumer as RdKafkaConsumer;
 use RdKafka\Message as KafkaMessage;
@@ -23,6 +25,7 @@ final class KafkaConsumer implements ConsumerInterface
 
     /** @var null|callable(\Throwable): void */
     private $errorHandler = null;
+    private LoggerInterface $logger;
 
     public function __construct(
         private readonly KafkaConfig $config,
@@ -31,6 +34,8 @@ final class KafkaConsumer implements ConsumerInterface
         private readonly bool $enableAutoCommit = true,
         private readonly string $autoOffsetReset = 'earliest',
     ) {
+        $this->logger = new NullLogger();
+
         if (trim($this->groupId) === '') {
             throw new \InvalidArgumentException('Kafka consumer groupId must be a non-empty string.');
         }
@@ -53,6 +58,13 @@ final class KafkaConsumer implements ConsumerInterface
         }
 
         $this->kafkaHost = $normalizedHost;
+
+        return $this;
+    }
+
+    public function withLogger(LoggerInterface $logger): self
+    {
+        $this->logger = $logger;
 
         return $this;
     }
@@ -95,10 +107,6 @@ final class KafkaConsumer implements ConsumerInterface
 
         $message = $this->getConsumer()->consume($pollTimeoutMs);
 
-        if (!$message instanceof KafkaMessage) {
-            return false;
-        }
-
         return $this->handleMessage($message, $onMessage);
     }
 
@@ -114,7 +122,23 @@ final class KafkaConsumer implements ConsumerInterface
                 try {
                     $envelop = Envelop::fromJson((string) $msg->payload);
 
-                    if ($envelop->isExpired() || !$envelop->checkSignature($this->signatureSecret)) {
+                    if ($envelop->isExpired()) {
+                        $this->logger->warning('Skipping expired Kafka message.', [
+                            'topic' => $msg->topic_name,
+                            'partition' => $msg->partition,
+                            'offset' => $msg->offset,
+                        ]);
+
+                        return true;
+                    }
+
+                    if (!$envelop->checkSignature($this->signatureSecret)) {
+                        $this->logger->warning('Skipping Kafka message with invalid envelope signature.', [
+                            'topic' => $msg->topic_name,
+                            'partition' => $msg->partition,
+                            'offset' => $msg->offset,
+                        ]);
+
                         return true;
                     }
 
@@ -126,6 +150,13 @@ final class KafkaConsumer implements ConsumerInterface
 
                     return true;
                 } catch (\Throwable $exception) {
+                    $this->logger->error('Kafka consumer failed to process a message.', [
+                        'exception' => $exception,
+                        'topic' => $msg->topic_name,
+                        'partition' => $msg->partition,
+                        'offset' => $msg->offset,
+                    ]);
+
                     if ($this->errorHandler !== null) {
                         ($this->errorHandler)($exception);
                     }

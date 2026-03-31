@@ -1,10 +1,20 @@
 # Marwa Kafka
 
-[![CI](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml)
-![PHP Version](https://img.shields.io/badge/PHP-8.1%2B-blue)
-![Kafka](https://img.shields.io/badge/Kafka-Ready-orange)
+[![CI Status](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml)
+[![Latest Version](https://img.shields.io/packagist/v/memran/marwa-kafka.svg)](https://packagist.org/packages/memran/marwa-kafka)
+[![Downloads](https://img.shields.io/packagist/dt/memran/marwa-kafka.svg)](https://packagist.org/packages/memran/marwa-kafka)
+[![License](https://img.shields.io/github/license/memran/marwa-kafka)](LICENSE)
 
-`memran/marwa-kafka` is a lightweight Kafka producer/consumer library for PHP built on `php-rdkafka` and `memran/marwa-envelop`. It keeps the public API small while enforcing safer configuration defaults and message validation.
+`memran/marwa-kafka` is a production-focused Kafka producer/consumer library for PHP. It wraps `php-rdkafka` with signed envelope handling from `memran/marwa-envelop`, safer configuration validation, PSR-3 logging hooks, and a lightweight developer workflow.
+
+## Features
+
+- Lazy Kafka producer and consumer setup with PSR-4 autoloading
+- Envelope signing, signature validation, and TTL-aware message filtering
+- Early validation for brokers, topics, group IDs, secrets, and timeout values
+- Optional PSR-3 structured logging for invalid or failed consumer message handling
+- PHPUnit, PHPStan, PHP-CS-Fixer, and GitHub Actions quality gates
+- Real Kafka integration tests for Docker and CI environments with `ext-rdkafka`
 
 ## Requirements
 
@@ -19,7 +29,7 @@ Install the package:
 composer require memran/marwa-kafka
 ```
 
-Install the PHP extension if needed:
+Install the extension if needed:
 
 ```bash
 pecl install rdkafka
@@ -46,20 +56,23 @@ $config = new KafkaConfig([
 $producer = (new KafkaProducer($config))
     ->withTopics(['user-events']);
 
-$envelop = EnvelopBuilder::start()
-    ->type('event')
-    ->sender('php-app')
-    ->receiver('user-service')
-    ->body(['message' => 'Hello from PHP'])
-    ->ttl(300)
-    ->sign('super-secret')
-    ->build();
+$producer->produce(
+    'user-events',
+    EnvelopBuilder::start()
+        ->type('event')
+        ->sender('php-app')
+        ->receiver('user-service')
+        ->body(['message' => 'Hello from PHP'])
+        ->ttl(300)
+        ->sign('super-secret')
+        ->build(),
+    'user-123',
+);
 
-$producer->produce('user-events', $envelop, 'user-123');
 $producer->flush();
 ```
 
-### Consume and validate messages
+### Consume with PSR-3 logging
 
 ```php
 <?php
@@ -68,6 +81,12 @@ declare(strict_types=1);
 
 use Marwa\Kafka\Consumer\KafkaConsumer;
 use Marwa\Kafka\Support\KafkaConfig;
+use Monolog\Handler\StreamHandler;
+use Monolog\Level;
+use Monolog\Logger;
+
+$logger = new Logger('kafka');
+$logger->pushHandler(new StreamHandler('php://stderr', Level::Warning));
 
 $config = new KafkaConfig([
     'brokers' => 'kafka:9092',
@@ -76,9 +95,7 @@ $config = new KafkaConfig([
 
 $consumer = (new KafkaConsumer($config, 'php-group', 'super-secret'))
     ->withTopics(['user-events'])
-    ->withErrorHandler(static function (\Throwable $exception): void {
-        error_log($exception->getMessage());
-    });
+    ->withLogger($logger);
 
 $consumer->run(static function ($envelop): bool {
     var_dump($envelop->body);
@@ -87,17 +104,17 @@ $consumer->run(static function ($envelop): bool {
 });
 ```
 
-Messages with invalid signatures or expired envelopes are ignored safely. When auto-commit is disabled, returning `false` from the callback prevents manual commit.
+Expired messages and invalid signatures are skipped safely. When auto-commit is disabled, returning `false` from the callback prevents manual commit.
 
 ## Configuration
 
 `KafkaConfig` accepts:
 
-- `brokers`: required bootstrap server list, for example `kafka:9092`
+- `brokers`: required bootstrap server list such as `kafka:9092`
 - `clientId`: optional Kafka client ID
-- `extra`: optional associative array of additional Kafka settings
+- `extra`: optional associative array of extra Kafka client options
 
-The library trims and validates broker names, host overrides, topic names, consumer group IDs, and signature secrets. Empty values are rejected early with `InvalidArgumentException`.
+Empty broker strings, topic names, host overrides, group IDs, signature secrets, and invalid timeout values now fail fast with `InvalidArgumentException`.
 
 ## Project Structure
 
@@ -109,6 +126,10 @@ src/
   Support/
 example/
 tests/
+  Consumer/
+  Producer/
+  Support/
+  Integration/
 ```
 
 ## Development
@@ -124,6 +145,7 @@ Common Composer scripts:
 
 ```bash
 composer test
+composer test:integration
 composer test:coverage
 composer analyse
 composer lint
@@ -131,26 +153,37 @@ composer fix
 composer ci
 ```
 
+Run the integration suite in Docker:
+
+```bash
+docker compose exec php composer install --no-interaction --prefer-dist
+docker compose exec php composer test:integration
+```
+
 ## Testing and Static Analysis
 
-- PHPUnit 10 covers configuration and validation behavior.
-- PHPStan runs at level 8.
-- PHP-CS-Fixer enforces a consistent PSR-style code format.
+- `composer test` runs the unit suite.
+- `composer test:integration` runs real Kafka round-trip tests.
+- `composer analyse` runs PHPStan 2.x.
+- `composer lint` and `composer fix` run PHP-CS-Fixer.
 
 ## CI
 
-GitHub Actions runs `composer ci` on pull requests and pushes to `main` across PHP 8.1, 8.2, and 8.3 with the `rdkafka` extension enabled.
+GitHub Actions runs:
+
+- A matrix quality job on PHP 8.1, 8.2, and 8.3
+- A Docker-based Kafka integration job that boots the local stack and runs the integration suite inside the PHP container
 
 ## Security Notes
 
-- Do not hard-code production secrets in examples or application code.
-- Always use a strong `signatureSecret`.
-- Prefer environment-specific broker configuration and Kafka ACLs.
-- Review `extra` Kafka options before enabling delivery or SASL settings in production.
+- Do not hard-code production secrets in application code.
+- Use strong per-environment `signatureSecret` values.
+- Prefer Kafka ACLs and environment-specific broker configuration.
+- Review `extra` client options carefully before enabling SASL or delivery-related settings.
 
 ## Contributing
 
-Open a pull request with a clear summary, test results, and any public API or README updates that accompany behavior changes.
+Open a pull request with a clear summary, test results, and any README or example updates required by public API changes.
 
 ## License
 

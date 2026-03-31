@@ -4,7 +4,9 @@ FROM php:8.2-cli-alpine
 RUN apk add --no-cache \
     librdkafka-dev \
     build-base \
-    autoconf
+    autoconf \
+    git \
+    unzip
 
 # Install the php-rdkafka extension
 # Use pecl install for easy installation

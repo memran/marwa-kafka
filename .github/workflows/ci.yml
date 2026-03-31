@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
 
     strategy:
@@ -33,3 +33,33 @@ jobs:
 
       - name: Run CI checks
         run: composer ci
+
+  integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start Kafka test stack
+        run: docker compose up -d --build kafka php
+
+      - name: Wait for Kafka to accept connections
+        run: |
+          docker compose exec -T php sh -lc '
+            for attempt in $(seq 1 30); do
+              php -r '"'"'$socket = @fsockopen("kafka", 9092); if ($socket !== false) { fclose($socket); exit(0); } exit(1);'"'"' && exit 0
+              sleep 2
+            done
+            exit 1
+          '
+
+      - name: Install dependencies in PHP container
+        run: docker compose exec -T php composer install --no-interaction --prefer-dist
+
+      - name: Run Kafka integration tests
+        run: docker compose exec -T php composer test:integration
+
+      - name: Stop Kafka test stack
+        if: always()
+        run: docker compose down -v
