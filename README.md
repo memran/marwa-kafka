@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/packagist/dt/memran/marwa-kafka.svg)](https://packagist.org/packages/memran/marwa-kafka)
 [![License](https://img.shields.io/github/license/memran/marwa-kafka)](LICENSE)
 
-`memran/marwa-kafka` is a production-focused Kafka producer/consumer library for PHP. It wraps `php-rdkafka` with signed envelope handling from `memran/marwa-envelop`, safer configuration validation, PSR-3 logging hooks, and a lightweight developer workflow.
+`memran/marwa-kafka` is a production-focused Kafka producer/consumer library for PHP 8.2+. It wraps `php-rdkafka` with signed envelope handling from `memran/marwa-envelop` v2, safer configuration validation, PSR-3 logging hooks, and a lightweight developer workflow.
 
 ## Features
 
@@ -13,15 +13,15 @@
 - Envelope signing, signature validation, and TTL-aware message filtering
 - Early validation for brokers, topics, group IDs, secrets, and timeout values
 - Optional PSR-3 structured logging for invalid or failed consumer message handling
-- PHPUnit, PHPStan, PHP-CS-Fixer, and GitHub Actions quality gates
+- PHPUnit, PHPStan 2.x, PHP-CS-Fixer, and GitHub Actions quality gates
 - Real Kafka integration tests for Docker and CI environments with `ext-rdkafka`
 
 ## Requirements
 
-- PHP 8.1, 8.2, or 8.3
+- PHP 8.2 or newer
 - `ext-rdkafka`
 - A reachable Kafka broker
-- `memran/marwa-envelop`
+- `memran/marwa-envelop` v2
 
 Install the package:
 
@@ -171,7 +171,7 @@ docker compose exec php composer test:integration
 
 GitHub Actions runs:
 
-- A matrix quality job on PHP 8.1, 8.2, and 8.3
+- A matrix quality job on PHP 8.2, 8.3, and 8.4
 - A Docker-based Kafka integration job that boots the local stack and runs the integration suite inside the PHP container
 
 ## Security Notes
