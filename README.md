@@ -1,6 +1,11 @@
 # Marwa Kafka
 
 [![CI Status](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml/badge.svg)](https://github.com/memran/marwa-kafka/actions/workflows/ci.yml)
+[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4.svg)](https://www.php.net/releases/)
+[![PHPUnit](https://img.shields.io/badge/PHPUnit-10.x-0A5A9C.svg)](https://phpunit.de/)
+[![PHPStan](https://img.shields.io/badge/PHPStan-2.x-31C652.svg)](https://phpstan.org/)
+[![Code Style](https://img.shields.io/badge/Code%20Style-PHP--CS--Fixer-F7B93E.svg)](https://cs.symfony.com/)
+[![Kafka Integration](https://img.shields.io/badge/Kafka%20Integration-Docker%20%2B%20CI-231F20.svg)](/docker-compose.yml)
 [![Latest Version](https://img.shields.io/packagist/v/memran/marwa-kafka.svg)](https://packagist.org/packages/memran/marwa-kafka)
 [![Downloads](https://img.shields.io/packagist/dt/memran/marwa-kafka.svg)](https://packagist.org/packages/memran/marwa-kafka)
 [![License](https://img.shields.io/github/license/memran/marwa-kafka)](LICENSE)
